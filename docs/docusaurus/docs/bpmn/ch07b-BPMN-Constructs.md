@@ -1682,9 +1682,9 @@ The value of the **scriptFormat** attribute must be a name that is compatible wi
 Do note that the Groovy scripting engine is bundled with the groovy-jsr223 jar. As such, one must add the following dependency:
 
     <dependency>
-        <groupId>org.codehaus.groovy</groupId>
+        <groupId>org.apache.groovy</groupId>
         <artifactId>groovy-jsr223</artifactId>
-        <version>2.x.x<version>
+        <version>4.x.x<version>
     </dependency>
 
 #### Variables in scripts
@@ -1888,7 +1888,7 @@ public class LongRunningJavaDelegate implements MapBasedFlowableFutureJavaDelega
 Note: the same rules and logic that applied for the `JavaDelegate` applies for the `FutureJavaDelegate` as well. 
 Keep in mind that when using field expression inject the evaluation of the expression should only be done before or after the execution is done (on the same thread as the process instance).
 
-[\[INTERNAL: non-public implementation classes\]](internal) It is also possible to provide a class that implements the *org.flowable.engine.impl.delegate.ActivityBehavior* interface. Implementations then have access to more powerful engine functionality, for example, to influence the control flow of the process. Note however that this is not a very good practice and should be avoided as much as possible. So, it is advisable to use the *ActivityBehavior* interface only for advanced use cases and if you know exactly what you’re doing.
+[\[INTERNAL: non-public implementation classes\]](../oss-introduction.md#internal-implementation-classes) It is also possible to provide a class that implements the *org.flowable.engine.impl.delegate.ActivityBehavior* interface. Implementations then have access to more powerful engine functionality, for example, to influence the control flow of the process. Note however that this is not a very good practice and should be avoided as much as possible. So, it is advisable to use the *ActivityBehavior* interface only for advanced use cases and if you know exactly what you’re doing.
 
 #### Field Injection
 
@@ -3242,7 +3242,7 @@ If you do not give a specific behavior, then org.flowable.camel.impl.CamelBehavi
 
     @Override
     public void configure() throws Exception {
-      from("flowable:PingPongProcess:ping").transform().simple("${property.input} World");
+      from("flowable:PingPongProcess:ping").transform().simple("${exchangeProperty.input} World");
     }
 
 In this route, the string "world" is concatenated to the end of the property named "input" and the result will be set in the message body. It’s accessible by checking the "camelBody" variable in the Java service task and copied to "outputMap". Now that the example with its default behavior works, let’s see what the other possibilities are. In starting every Camel route, the Process Instance ID will be copied into a Camel property with the specific name of "PROCESS\_ID\_PROPERTY". It’s later used for correlating the process instance and Camel route. Also, it can be exploited in the Camel route.

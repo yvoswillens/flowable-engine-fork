@@ -223,6 +223,13 @@ public class VariablesTest extends FlowableCmmnTestCase {
 
         // verify variables
         assertThat(cmmnRuntimeService.getVariable(caseInstance.getId(), "stringVar")).isEqualTo("test");
+        
+        VariableInstance variableInstance = cmmnRuntimeService.createVariableInstanceQuery().variableName("stringVar")
+                .singleResult();
+        assertThat(variableInstance.getScopeId()).isEqualTo(caseInstance.getId());
+        assertThat(variableInstance.getScopeType()).isEqualTo(ScopeTypes.CMMN);
+        assertThat(variableInstance.getValue()).isEqualTo("test");
+        assertThat(variableInstance.getSubScopeId()).isNull();
 
         if (CmmnHistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, cmmnEngineConfiguration)) {
             HistoricVariableInstance historicVariableInstance = cmmnHistoryService.createHistoricVariableInstanceQuery().variableName("stringVar")
@@ -234,6 +241,13 @@ public class VariablesTest extends FlowableCmmnTestCase {
         }
 
         assertThat(cmmnRuntimeService.getVariable(caseInstance.getId(), "intVar")).isEqualTo(123);
+        
+        variableInstance = cmmnRuntimeService.createVariableInstanceQuery().variableName("intVar")
+                .singleResult();
+        assertThat(variableInstance.getScopeId()).isEqualTo(caseInstance.getId());
+        assertThat(variableInstance.getScopeType()).isEqualTo(ScopeTypes.CMMN);
+        assertThat(variableInstance.getValue()).isEqualTo(123);
+        assertThat(variableInstance.getSubScopeId()).isNull();
 
         if (CmmnHistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, cmmnEngineConfiguration)) {
             HistoricVariableInstance historicVariableInstance = cmmnHistoryService.createHistoricVariableInstanceQuery().variableName("intVar").singleResult();
@@ -244,6 +258,13 @@ public class VariablesTest extends FlowableCmmnTestCase {
         }
 
         assertThat(cmmnRuntimeService.getVariable(caseInstance.getId(), "doubleVar")).isEqualTo(123.123);
+        
+        variableInstance = cmmnRuntimeService.createVariableInstanceQuery().variableName("doubleVar")
+                .singleResult();
+        assertThat(variableInstance.getScopeId()).isEqualTo(caseInstance.getId());
+        assertThat(variableInstance.getScopeType()).isEqualTo(ScopeTypes.CMMN);
+        assertThat(variableInstance.getValue()).isEqualTo(123.123);
+        assertThat(variableInstance.getSubScopeId()).isNull();
 
         if (CmmnHistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, cmmnEngineConfiguration)) {
             HistoricVariableInstance historicVariableInstance = cmmnHistoryService.createHistoricVariableInstanceQuery().variableName("doubleVar").singleResult();
@@ -260,6 +281,10 @@ public class VariablesTest extends FlowableCmmnTestCase {
         cmmnRuntimeService.setVariables(caseInstance.getId(), newVariables);
 
         assertThat(cmmnRuntimeService.getVariable(caseInstance.getId(), "stringVar")).isEqualTo("newValue");
+        
+        assertThat(cmmnRuntimeService.createVariableInstanceQuery().variableName("stringVar").singleResult().getValue()).isEqualTo("newValue");
+        assertThat(cmmnRuntimeService.createVariableInstanceQuery().variableName("otherStringVar").singleResult().getValue())
+            .isEqualTo("test number 2");
 
         if (CmmnHistoryTestHelper.isHistoryLevelAtLeast(HistoryLevel.ACTIVITY, cmmnEngineConfiguration)) {
             assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().variableName("stringVar").singleResult().getValue()).isEqualTo("newValue");
@@ -731,6 +756,35 @@ public class VariablesTest extends FlowableCmmnTestCase {
         assertThat(variableInstance.getTypeName()).isEqualTo("serializable");
         assertThat(variableInstance.getValue())
                 .isInstanceOfSatisfying(Set.class, set -> assertThat(set).isEmpty());
+    }
+
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/task/CmmnTaskServiceTest.testOneHumanTaskCase.cmmn")
+    public void testVariableInstanceQueryExcludeLocalVariables() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .variable("myVar", "test1")
+                .start();
+
+        PlanItemInstance planItemInstance = cmmnRuntimeService.createPlanItemInstanceQuery().planItemDefinitionId("theTask")
+                .caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnRuntimeService.setLocalVariable(planItemInstance.getId(), "myLocalVar", "test2");
+
+        List<VariableInstance> vars = cmmnRuntimeService.createVariableInstanceQuery().planItemInstanceId(planItemInstance.getId()).list();
+
+        assertThat(vars.size()).isEqualTo(1);
+        assertThat(vars).extracting(VariableInstance::getValue).containsExactlyInAnyOrder("test2");
+
+        vars = cmmnRuntimeService.createVariableInstanceQuery().caseInstanceId(caseInstance.getId()).excludeLocalVariables().list();
+
+        assertThat(vars.size()).isEqualTo(1);
+        assertThat(vars).extracting(VariableInstance::getValue).containsExactlyInAnyOrder("test1");
+
+        List<HistoricVariableInstance> historyVars = cmmnHistoryService.createHistoricVariableInstanceQuery().caseInstanceId(caseInstance.getId())
+                .excludeLocalVariables().list();
+
+        assertThat(historyVars.size()).isEqualTo(1);
+        assertThat(historyVars).extracting(HistoricVariableInstance::getValue).containsExactlyInAnyOrder("test1");
     }
 
     protected void addVariableTypeIfNotExists(VariableType variableType) {

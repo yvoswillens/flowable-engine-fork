@@ -40,8 +40,10 @@ public final class RestUrls {
 
     public static final String SEGMENT_TASK_RESOURCE = "tasks";
     public static final String SEGMENT_EXECUTION_RESOURCE = "executions";
+    public static final String SEGMENT_ACTIVITY_INSTANCE_RESOURCE = "activity-instances";
     public static final String SEGMENT_PROCESS_INSTANCE_RESOURCE = "process-instances";
     public static final String SEGMENT_VARIABLES = "variables";
+    public static final String SEGMENT_VARIABLE_INSTANCE_RESOURCE = "variable-instances";
     public static final String SEGMENT_EVENT_SUBSCRIPTIONS = "event-subscriptions";
     public static final String SEGMENT_SUBTASKS = "subtasks";
     public static final String SEGMENT_IDENTITYLINKS = "identitylinks";
@@ -308,6 +310,16 @@ public final class RestUrls {
      * URL template for execution query: <i>query/executions</i>
      */
     public static final String[] URL_EXECUTION_QUERY = { SEGMENT_QUERY_RESOURCES, SEGMENT_EXECUTION_RESOURCE };
+    
+    /**
+     * URL template for activity instance query: <i>runtime/activity-instances</i>
+     */
+    public static final String[] URL_ACTIVITY_INSTANCES = { SEGMENT_RUNTIME_RESOURCES, SEGMENT_ACTIVITY_INSTANCE_RESOURCE };
+    
+    /**
+     * URL template for activity instance query: <i>query/activity-instances</i>
+     */
+    public static final String[] URL_ACTIVITY_INSTANCE_QUERY = { SEGMENT_QUERY_RESOURCES, SEGMENT_ACTIVITY_INSTANCE_RESOURCE };
 
     /**
      * URL template for process instance collection: <i>runtime/process-instances</i>
@@ -344,6 +356,21 @@ public final class RestUrls {
      */
     public static final String[] URL_PROCESS_INSTANCE_VARIABLE_DATA = { SEGMENT_RUNTIME_RESOURCES, SEGMENT_PROCESS_INSTANCE_RESOURCE, "{0}", SEGMENT_VARIABLES, "{1}", SEGMENT_VARIABLE_DATA };
 
+    /**
+     * URL template for variable instance query: <i>runtime/variable-instances</i>
+     */
+    public static final String[] URL_VARIABLE_INSTANCES = { SEGMENT_RUNTIME_RESOURCES, SEGMENT_VARIABLE_INSTANCE_RESOURCE };
+
+    /**
+     * URL template for a single variable instance data: <i>runtime/variable-instances/{0:varInstanceId}/data</i>
+     */
+    public static final String[] URL_VARIABLE_INSTANCE_DATA = { SEGMENT_RUNTIME_RESOURCES, SEGMENT_VARIABLE_INSTANCE_RESOURCE, "{0}", SEGMENT_VARIABLE_DATA };
+    
+    /**
+     * URL template for variable instance query: <i>query/variable-instances</i>
+     */
+    public static final String[] URL_VARIABLE_INSTANCE_QUERY = { SEGMENT_QUERY_RESOURCES, SEGMENT_VARIABLE_INSTANCE_RESOURCE };
+    
     /**
      * URL template for a comment on a process instance: <i>history/historic-process -instances/{0:processInstanceId}/comments/{1:commentId}</i>
      */

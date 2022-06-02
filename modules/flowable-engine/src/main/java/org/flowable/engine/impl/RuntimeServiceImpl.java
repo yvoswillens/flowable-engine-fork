@@ -34,6 +34,7 @@ import org.flowable.engine.impl.cmd.AddEventConsumerCommand;
 import org.flowable.engine.impl.cmd.AddEventListenerCommand;
 import org.flowable.engine.impl.cmd.AddIdentityLinkForProcessInstanceCmd;
 import org.flowable.engine.impl.cmd.AddMultiInstanceExecutionCmd;
+import org.flowable.engine.impl.cmd.BulkDeleteProcessInstancesCmd;
 import org.flowable.engine.impl.cmd.ChangeActivityStateCmd;
 import org.flowable.engine.impl.cmd.CompleteAdhocSubProcessCmd;
 import org.flowable.engine.impl.cmd.DeleteIdentityLinkForProcessInstanceCmd;
@@ -96,6 +97,10 @@ import org.flowable.form.api.FormInfo;
 import org.flowable.identitylink.api.IdentityLink;
 import org.flowable.identitylink.api.IdentityLinkType;
 import org.flowable.variable.api.persistence.entity.VariableInstance;
+import org.flowable.variable.api.runtime.NativeVariableInstanceQuery;
+import org.flowable.variable.api.runtime.VariableInstanceQuery;
+import org.flowable.variable.service.impl.NativeVariableInstanceQueryImpl;
+import org.flowable.variable.service.impl.VariableInstanceQueryImpl;
 
 /**
  * @author Tom Baeyens
@@ -185,6 +190,11 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     @Override
     public void deleteProcessInstance(String processInstanceId, String deleteReason) {
         commandExecutor.execute(new DeleteProcessInstanceCmd(processInstanceId, deleteReason));
+    }
+
+    @Override
+    public void bulkDeleteProcessInstances(Collection<String> processInstanceIds, String deleteReason) {
+        commandExecutor.execute(new BulkDeleteProcessInstancesCmd(processInstanceIds, deleteReason));
     }
 
     @Override
@@ -359,6 +369,16 @@ public class RuntimeServiceImpl extends CommonEngineServiceImpl<ProcessEngineCon
     @Override
     public void removeVariablesLocal(String executionId, Collection<String> variableNames) {
         commandExecutor.execute(new RemoveExecutionVariablesCmd(executionId, variableNames, true));
+    }
+    
+    @Override
+    public VariableInstanceQuery createVariableInstanceQuery() {
+        return new VariableInstanceQueryImpl(commandExecutor, configuration.getVariableServiceConfiguration());
+    }
+
+    @Override
+    public NativeVariableInstanceQuery createNativeVariableInstanceQuery() {
+        return new NativeVariableInstanceQueryImpl(commandExecutor, configuration.getVariableServiceConfiguration());
     }
 
     @Override

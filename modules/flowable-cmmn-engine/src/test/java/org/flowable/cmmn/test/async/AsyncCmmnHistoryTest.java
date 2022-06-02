@@ -23,8 +23,10 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -39,7 +41,9 @@ import org.flowable.cmmn.api.runtime.PlanItemInstanceState;
 import org.flowable.cmmn.api.runtime.UserEventListenerInstance;
 import org.flowable.cmmn.engine.CmmnEngineConfiguration;
 import org.flowable.cmmn.engine.test.CmmnDeployment;
+import org.flowable.cmmn.engine.test.impl.CmmnHistoryTestHelper;
 import org.flowable.cmmn.test.impl.CustomCmmnConfigurationFlowableTestCase;
+import org.flowable.common.engine.api.FlowableIllegalArgumentException;
 import org.flowable.common.engine.api.FlowableObjectNotFoundException;
 import org.flowable.common.engine.api.scope.ScopeTypes;
 import org.flowable.common.engine.impl.interceptor.Command;
@@ -168,6 +172,369 @@ public class AsyncCmmnHistoryTest extends CustomCmmnConfigurationFlowableTestCas
         waitForAsyncHistoryExecutorToProcessAllJobs();
         assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isZero();
     }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/async/AsyncCmmnHistoryTest.testHistoricCaseInstanceDeleted.cmmn")
+    public void testHistoricCaseInstanceBulkDeleted() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CaseInstance caseInstance2 = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task2 = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance2.getId()).singleResult();
+        cmmnTaskService.complete(task2.getId());
+
+        CaseInstance caseInstance3 = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task3 = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance3.getId()).singleResult();
+        cmmnTaskService.complete(task3.getId());
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+
+        assertThat(cmmnRuntimeService.createPlanItemInstanceQuery().count()).isEqualTo(0);
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(3);
+        List<String> instanceIdList = new ArrayList<>();
+        instanceIdList.add(caseInstance.getId());
+        instanceIdList.add(caseInstance2.getId());
+        cmmnHistoryService.bulkDeleteHistoricCaseInstances(instanceIdList);
+
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+    }
+
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/async/AsyncCmmnHistoryTest.testHistoricCaseInstanceDeleted.cmmn")
+    public void testInvalidHistoricCaseInstanceBulkDeleted() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CaseInstance caseInstance2 = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task2 = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance2.getId()).singleResult();
+        cmmnTaskService.complete(task2.getId());
+
+        CaseInstance caseInstance3 = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("oneHumanTaskCase")
+                .name("someName")
+                .businessKey("someBusinessKey")
+                .variable("test", "test")
+                .start();
+
+        Task task3 = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance3.getId()).singleResult();
+        cmmnTaskService.complete(task3.getId());
+
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+
+        Set<String> caseInstanceIdList = new HashSet<>();
+        caseInstanceIdList.add(caseInstance.getId());
+        caseInstanceIdList.add(caseInstance2.getId());
+        caseInstanceIdList.add("inValidId");
+
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(3);
+
+        assertThatThrownBy(() -> cmmnHistoryService.bulkDeleteHistoricCaseInstances(caseInstanceIdList))
+                .isInstanceOf(FlowableObjectNotFoundException.class).hasMessage("No historic case instance found with id: inValidId");
+
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(3);
+
+        assertThatThrownBy(() -> cmmnHistoryService.bulkDeleteHistoricCaseInstances(null))
+                .isInstanceOf(FlowableIllegalArgumentException.class).hasMessage("historic case instanceIds are null");
+
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(3);
+
+    }
+
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testStartSimplePassthroughCaseInstanceLevel.cmmn")
+    public void testInstanceLevelSTP() {
+        cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testStartSimplePassthroughCaseCustomLevelPlanItems.cmmn")
+    public void testCustomLevelPlanItemsSTP() {
+        cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        List<HistoricPlanItemInstance> planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType)
+            .containsOnly(
+                    tuple("taskA", "task"),
+                    tuple("mileStoneTwo", "milestone")
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().singleResult().getElementId()).isEqualTo("planItemMileStoneTwo");
+        
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testTwoTaskCase.cmmn")
+    public void testDefaultHistoryLevelTwoTasks() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+        
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+        
+        task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isEqualTo(2);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(3);
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isEqualTo(2);
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testTwoTaskCaseInstanceLevel.cmmn")
+    public void testInstanceLevelTwoTasks() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+        
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+        
+        task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testTwoTaskCaseInstanceLevelPlanItems.cmmn")
+    public void testInstanceLevelTwoTasksWithCustomPlanItems() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+        
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        List<HistoricPlanItemInstance> planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.AVAILABLE),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.AVAILABLE)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+        
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+        
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.ACTIVE),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.AVAILABLE)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+        
+        task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.COMPLETED),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.COMPLETED)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testTwoTaskCaseTaskLevel.cmmn")
+    public void testTaskLevelTwoTasks() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+        
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+        
+        task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isEqualTo(2);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
+    
+    @Test
+    @CmmnDeployment(resources = "org/flowable/cmmn/test/history/testTwoTaskCaseTaskLevelPlanItems.cmmn")
+    public void testTaskLevelTwoTasksWithCustomPlanItems() {
+        CaseInstance caseInstance = cmmnRuntimeService.createCaseInstanceBuilder()
+                .caseDefinitionKey("myCase")
+                .variable("var1", "test")
+                .variable("var2", 10)
+                .start();
+        
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        List<HistoricPlanItemInstance> planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.AVAILABLE),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.AVAILABLE)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+        
+        Task task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+        
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isEqualTo(2);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.ACTIVE),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.AVAILABLE)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isZero();
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+        
+        task = cmmnTaskService.createTaskQuery().caseInstanceId(caseInstance.getId()).singleResult();
+        cmmnTaskService.complete(task.getId());
+
+        CmmnHistoryTestHelper.waitForJobExecutorToProcessAllHistoryJobs(cmmnEngineConfiguration, cmmnManagementService, 10000, 200);
+        
+        assertThat(cmmnHistoryService.createHistoricCaseInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().count()).isEqualTo(2);
+        assertThat(cmmnHistoryService.createHistoricPlanItemInstanceQuery().count()).isEqualTo(2);
+        
+        planItemInstances = cmmnHistoryService.createHistoricPlanItemInstanceQuery().list();
+        assertThat(planItemInstances)
+            .extracting(HistoricPlanItemInstance::getPlanItemDefinitionId,
+                    HistoricPlanItemInstance::getPlanItemDefinitionType,
+                    HistoricPlanItemInstance::getState)
+            .containsOnly(
+                    tuple("taskB", "humantask", PlanItemInstanceState.COMPLETED),
+                    tuple("mileStoneOne", "milestone", PlanItemInstanceState.COMPLETED)
+            );
+        
+        assertThat(cmmnHistoryService.createHistoricMilestoneInstanceQuery().count()).isEqualTo(1);
+        assertThat(cmmnHistoryService.createHistoricVariableInstanceQuery().count()).isZero();
+    }
 
     @Test
     public void testCreateTaskHistory() {
@@ -180,6 +547,21 @@ public class AsyncCmmnHistoryTest extends CustomCmmnConfigurationFlowableTestCas
         assertThat(task.getId()).isEqualTo("task1");
 
         cmmnTaskService.deleteTask(task.getId(), true);
+    }
+
+    @Test
+    public void testDeleteHistoricTask() {
+        Task task = cmmnTaskService.createTaskBuilder().id("task1").create();
+        cmmnTaskService.complete(task.getId());
+
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().taskId("task1").singleResult()).isNotNull();
+        cmmnHistoryService.deleteHistoricTaskInstance("task1");
+
+        waitForAsyncHistoryExecutorToProcessAllJobs();
+
+        assertThat(cmmnHistoryService.createHistoricTaskInstanceQuery().taskId("task1").singleResult()).isNull();
     }
 
     @Test
@@ -463,10 +845,7 @@ public class AsyncCmmnHistoryTest extends CustomCmmnConfigurationFlowableTestCas
         List<HistoricIdentityLink> historicCandidateUserLinks = historicIdentityLinks.stream()
                 .filter(identityLink -> identityLink.getType().equals(IdentityLinkType.CANDIDATE) &&
                         identityLink.getUserId() != null).collect(Collectors.toList());
-        List<String> linkValues = new ArrayList<>();
-        for (HistoricIdentityLink candidateLink : historicCandidateUserLinks) {
-            linkValues.add(candidateLink.getUserId());
-        }
+
         assertThat(extractProperty("userId").from(historicCandidateUserLinks))
                 .containsExactlyInAnyOrder("johnDoe", "janeDoe");
 

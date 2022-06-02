@@ -12,6 +12,7 @@
  */
 package org.flowable.eventregistry.test;
 
+import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
 
@@ -23,17 +24,23 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.flowable.eventregistry.api.EventConsumerInfo;
 import org.flowable.eventregistry.api.EventDeployment;
 import org.flowable.eventregistry.api.EventRegistry;
 import org.flowable.eventregistry.api.EventRegistryEvent;
 import org.flowable.eventregistry.api.EventRegistryEventConsumer;
+import org.flowable.eventregistry.api.EventRegistryNonMatchingEventConsumer;
+import org.flowable.eventregistry.api.EventRegistryProcessingInfo;
+import org.flowable.eventregistry.api.FlowableEventInfo;
 import org.flowable.eventregistry.api.InboundEventChannelAdapter;
 import org.flowable.eventregistry.api.InboundEventDeserializer;
+import org.flowable.eventregistry.api.InboundEventKeyDetector;
 import org.flowable.eventregistry.api.InboundEventPayloadExtractor;
 import org.flowable.eventregistry.api.model.EventPayloadTypes;
 import org.flowable.eventregistry.api.runtime.EventInstance;
 import org.flowable.eventregistry.api.runtime.EventPayloadInstance;
 import org.flowable.eventregistry.impl.DefaultInboundEventProcessor;
+import org.flowable.eventregistry.impl.FlowableEventInfoImpl;
 import org.flowable.eventregistry.impl.event.FlowableEventRegistryEvent;
 import org.flowable.eventregistry.impl.pipeline.DefaultInboundEventProcessingPipeline;
 import org.flowable.eventregistry.impl.runtime.EventPayloadInstanceImpl;
@@ -47,6 +54,8 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
+import net.javacrumbs.jsonunit.core.Option;
 
 /**
  * @author Joram Barrez
@@ -116,6 +125,85 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
                         tuple("payload2", EventPayloadTypes.INTEGER, 123)
                 );
     }
+    
+    @Test
+    public void testFullPayloadPropertyName() {
+        TestInboundEventChannelAdapter inboundEventChannelAdapter = setupTestChannel();
+
+        repositoryService.createEventModelBuilder()
+                .key("myEvent")
+                .resourceName("myEvent.event")
+                .fullPayload("fullPayload")
+                .deploy();
+
+        inboundEventChannelAdapter.triggerTestEvent();
+
+        assertThat(testEventConsumer.eventsReceived).hasSize(1);
+        FlowableEventRegistryEvent eventRegistryEvent = (FlowableEventRegistryEvent) testEventConsumer.eventsReceived.get(0);
+
+        EventInstance eventInstance = eventRegistryEvent.getEventInstance();
+        assertThat(eventInstance.getEventKey()).isEqualTo("myEvent");
+
+        assertThat(eventInstance.getPayloadInstances()).hasSize(1);
+        EventPayloadInstance payloadInstance = eventInstance.getPayloadInstances().iterator().next();
+        assertThatJson(payloadInstance.getValue())
+            .when(Option.IGNORING_EXTRA_FIELDS)
+            .isEqualTo("{"
+                    + "    type: 'myEvent',"
+                    + "    customerId: 'test',"
+                    + "    payload1: 'Hello World',"
+                    + "    payload2: 123"
+                    + "}");
+    }
+    
+    @Test
+    public void testFullPayloadPropertyNameWithCorrelationAndPayload() {
+        TestInboundEventChannelAdapter inboundEventChannelAdapter = setupTestChannel();
+
+        repositoryService.createEventModelBuilder()
+                .key("myEvent")
+                .resourceName("myEvent.event")
+                .correlationParameter("customerId", EventPayloadTypes.STRING)
+                .payload("payload1", EventPayloadTypes.STRING)
+                .fullPayload("fullPayload")
+                .deploy();
+
+        inboundEventChannelAdapter.triggerTestEvent();
+
+        assertThat(testEventConsumer.eventsReceived).hasSize(1);
+        FlowableEventRegistryEvent eventRegistryEvent = (FlowableEventRegistryEvent) testEventConsumer.eventsReceived.get(0);
+
+        EventInstance eventInstance = eventRegistryEvent.getEventInstance();
+        assertThat(eventInstance.getEventKey()).isEqualTo("myEvent");
+
+        assertThat(eventInstance.getCorrelationParameterInstances())
+            .extracting(EventPayloadInstance::getValue)
+            .containsOnly("test");
+        assertThat(eventInstance.getPayloadInstances())
+            .extracting(EventPayloadInstance::getDefinitionName, EventPayloadInstance::getDefinitionType, EventPayloadInstance::getValue)
+            .contains(
+                    tuple("customerId", EventPayloadTypes.STRING, "test"),
+                    tuple("payload1", EventPayloadTypes.STRING, "Hello World")
+            );
+        
+        EventPayloadInstance payloadInstance = null;
+        
+        for (EventPayloadInstance eventPayloadInstance : eventInstance.getPayloadInstances()) {
+            if ("fullPayload".equalsIgnoreCase(eventPayloadInstance.getDefinitionName())) {
+                payloadInstance = eventPayloadInstance;
+            }
+        }
+        
+        assertThat(payloadInstance).isNotNull();
+        assertThatJson(payloadInstance.getValue())
+            .when(Option.IGNORING_EXTRA_FIELDS)
+            .isEqualTo("{"
+                    + "    type: 'myEvent',"
+                    + "    customerId: 'test',"
+                    + "    payload1: 'Hello World',"
+                    + "    payload2: 123"
+                    + "}");
+    }
 
     @Test
     public void testDefaultInboundEventPipelineWithCustomDeserializerAndExtractor() {
@@ -147,6 +235,86 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
                         tuple("payload1", EventPayloadTypes.STRING, "Hello World"),
                         tuple("payload2", EventPayloadTypes.INTEGER, 123)
                 );
+    }
+    
+    @Test
+    public void testMissingEventConsumer() {
+        eventEngineConfiguration.getEventRegistryEventConsumers().remove(testEventConsumer.getConsumerKey());
+        TestNonMatchingEventConsumer testNonMatchingEventConsumer = new TestNonMatchingEventConsumer();
+        eventEngineConfiguration.setNonMatchingEventConsumer(testNonMatchingEventConsumer);
+        try {
+            TestInboundEventChannelAdapter inboundEventChannelAdapter = setupTestChannel();
+    
+            repositoryService.createEventModelBuilder()
+                    .key("myEvent")
+                    .resourceName("myEvent.event")
+                    .correlationParameter("customerId", EventPayloadTypes.STRING)
+                    .payload("payload1", EventPayloadTypes.STRING)
+                    .payload("payload2", EventPayloadTypes.INTEGER)
+                    .deploy();
+    
+            inboundEventChannelAdapter.triggerTestEvent();
+    
+            assertThat(testNonMatchingEventConsumer.eventsReceived).hasSize(1);
+            FlowableEventRegistryEvent eventRegistryEvent = (FlowableEventRegistryEvent) testNonMatchingEventConsumer.eventsReceived.get(0);
+    
+            EventInstance eventInstance = eventRegistryEvent.getEventInstance();
+            assertThat(eventInstance.getEventKey()).isEqualTo("myEvent");
+    
+            assertThat(eventInstance.getCorrelationParameterInstances())
+                    .extracting(EventPayloadInstance::getValue)
+                    .containsOnly("test");
+            assertThat(eventInstance.getPayloadInstances())
+                    .extracting(EventPayloadInstance::getDefinitionName, EventPayloadInstance::getDefinitionType, EventPayloadInstance::getValue)
+                    .containsOnly(
+                            tuple("customerId", EventPayloadTypes.STRING, "test"),
+                            tuple("payload1", EventPayloadTypes.STRING, "Hello World"),
+                            tuple("payload2", EventPayloadTypes.INTEGER, 123)
+                    );
+            
+        } finally {
+            eventEngineConfiguration.setNonMatchingEventConsumer(null);
+        }
+    }
+    
+    @Test
+    public void testMissingEventConsumerNotCalled() {
+        TestNonMatchingEventConsumer testNonMatchingEventConsumer = new TestNonMatchingEventConsumer();
+        eventEngineConfiguration.setNonMatchingEventConsumer(testNonMatchingEventConsumer);
+        try {
+            TestInboundEventChannelAdapter inboundEventChannelAdapter = setupTestChannel();
+    
+            repositoryService.createEventModelBuilder()
+                    .key("myEvent")
+                    .resourceName("myEvent.event")
+                    .correlationParameter("customerId", EventPayloadTypes.STRING)
+                    .payload("payload1", EventPayloadTypes.STRING)
+                    .payload("payload2", EventPayloadTypes.INTEGER)
+                    .deploy();
+    
+            inboundEventChannelAdapter.triggerTestEvent();
+    
+            assertThat(testNonMatchingEventConsumer.eventsReceived).hasSize(0);
+            assertThat(testEventConsumer.eventsReceived).hasSize(1);
+            FlowableEventRegistryEvent eventRegistryEvent = (FlowableEventRegistryEvent) testEventConsumer.eventsReceived.get(0);
+    
+            EventInstance eventInstance = eventRegistryEvent.getEventInstance();
+            assertThat(eventInstance.getEventKey()).isEqualTo("myEvent");
+    
+            assertThat(eventInstance.getCorrelationParameterInstances())
+                    .extracting(EventPayloadInstance::getValue)
+                    .containsOnly("test");
+            assertThat(eventInstance.getPayloadInstances())
+                    .extracting(EventPayloadInstance::getDefinitionName, EventPayloadInstance::getDefinitionType, EventPayloadInstance::getValue)
+                    .containsOnly(
+                            tuple("customerId", EventPayloadTypes.STRING, "test"),
+                            tuple("payload1", EventPayloadTypes.STRING, "Hello World"),
+                            tuple("payload2", EventPayloadTypes.INTEGER, 123)
+                    );
+            
+        } finally {
+            eventEngineConfiguration.setNonMatchingEventConsumer(null);
+        }
     }
 
     protected TestInboundEventChannelAdapter setupTestChannel() {
@@ -186,9 +354,10 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
         inboundEventProcessingPipeline.setInboundEventDeserializer(new InboundEventDeserializer<Customer>() {
 
             @Override
-            public Customer deserialize(String rawEvent) {
+            public FlowableEventInfo<Customer> deserialize(Object rawEvent) {
                 try {
-                    return new ObjectMapper().readValue(rawEvent, Customer.class);
+                    Customer customer = new ObjectMapper().readValue(rawEvent.toString(), Customer.class);
+                    return new FlowableEventInfoImpl<>(null, customer);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -196,22 +365,30 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
 
         });
 
-        inboundEventProcessingPipeline.setInboundEventKeyDetector(Customer::getType);
+        inboundEventProcessingPipeline.setInboundEventKeyDetector(new InboundEventKeyDetector<Customer> () {
+            
+            @Override
+            public String detectEventDefinitionKey(FlowableEventInfo<Customer> event) {
+                return event.getPayload().getType();
+            }
+        });
+        
         inboundEventProcessingPipeline.setInboundEventPayloadExtractor(new InboundEventPayloadExtractor<Customer>() {
 
             @Override
-            public Collection<EventPayloadInstance> extractPayload(EventModel eventDefinition, Customer event) {
+            public Collection<EventPayloadInstance> extractPayload(EventModel eventDefinition, FlowableEventInfo<Customer> event) {
                 Collection<EventPayloadInstance> payloadInstances = new ArrayList<>();
                 for (EventPayload eventPayloadDefinition : eventDefinition.getPayload()) {
+                    Customer customer = event.getPayload();
                     switch (eventPayloadDefinition.getName()) {
                         case "payload1":
-                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, event.getPayload1()));
+                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, customer.getPayload1()));
                             break;
                         case "payload2":
-                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, event.getPayload2()));
+                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, customer.getPayload2()));
                             break;
                         case "customerId":
-                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, event.getCustomerId()));
+                            payloadInstances.add(new EventPayloadInstanceImpl(eventPayloadDefinition, customer.getCustomerId()));
                             break;
                     }
                 }
@@ -236,8 +413,11 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
         }
 
         @Override
-        public void eventReceived(EventRegistryEvent event) {
+        public EventRegistryProcessingInfo eventReceived(EventRegistryEvent event) {
             eventsReceived.add(event);
+            EventRegistryProcessingInfo eventRegistryProcessingInfo = new EventRegistryProcessingInfo();
+            eventRegistryProcessingInfo.addEventConsumerInfo(new EventConsumerInfo());
+            return eventRegistryProcessingInfo;
         }
 
     }
@@ -270,6 +450,16 @@ public class DefaultEventRegistryTest extends AbstractFlowableEventTest {
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
             }
+        }
+    }
+    
+    private static class TestNonMatchingEventConsumer implements EventRegistryNonMatchingEventConsumer {
+
+        public List<EventRegistryEvent> eventsReceived = new ArrayList<>();
+
+        @Override
+        public void handleNonMatchingEvent(EventRegistryEvent event, EventRegistryProcessingInfo eventRegistryProcessingInfo) {
+            eventsReceived.add(event);
         }
 
     }

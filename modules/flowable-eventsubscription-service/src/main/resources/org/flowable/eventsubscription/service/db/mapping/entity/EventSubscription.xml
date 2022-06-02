@@ -27,7 +27,9 @@
     <result property="scopeId" column="SCOPE_ID_" jdbcType="VARCHAR" />
     <result property="scopeDefinitionId" column="SCOPE_DEFINITION_ID_" jdbcType="VARCHAR" />
     <result property="scopeType" column="SCOPE_TYPE_" jdbcType="VARCHAR" />
-    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />     
+    <result property="lockTime" column="LOCK_TIME_" jdbcType="TIMESTAMP" />
+    <result property="lockOwner" column="LOCK_OWNER_" jdbcType="VARCHAR" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <discriminator javaType="string" column="EVENT_TYPE_">
       <case value="message" resultMap="messageResultMap"/> 
       <case value="signal" resultMap="signalResultMap"/> 
@@ -111,11 +113,11 @@
 	  </if>
 	  <if test="createdAfter != null">
 		and RES.CREATED_ &gt; #{createdAfter}
-	  </if> 
+	  </if>
       <if test="tenantId != null">
         and RES.TENANT_ID_ = #{tenantId}
       </if>
-      <if test="tenantIds != null and !tenantIds.isEmpty()">
+      <if test="tenantIds != null and !tenantIds.empty">
         and RES.TENANT_ID_ in
         <foreach item="item" index="index" collection="tenantIds" open="(" separator="," close=")">
             #{item}
@@ -127,7 +129,7 @@
       <if test="configuration != null">
           and RES.CONFIGURATION_ = #{configuration}
       </if>
-      <if test="configurations != null and !configurations.isEmpty()">
+      <if test="configurations != null and !configurations.empty">
           and RES.CONFIGURATION_ in
           <foreach item="item" index="index" collection="configurations" open="(" separator="," close=")">
               #{item}
@@ -193,7 +195,7 @@
               <if test="orQueryObject.tenantId != null">
                   or RES.TENANT_ID_ = #{orQueryObject.tenantId}
               </if>
-              <if test="orQueryObject.tenantIds != null and !orQueryObject.tenantIds.isEmpty()">
+              <if test="orQueryObject.tenantIds != null and !orQueryObject.tenantIds.empty">
                   or RES.TENANT_ID_ in
                   <foreach item="item" index="index" collection="orQueryObject.tenantIds" open="(" separator="," close=")">
                       #{item}
@@ -205,7 +207,7 @@
               <if test="orQueryObject.configuration != null">
                   or RES.CONFIGURATION_ = #{orQueryObject.configuration}
               </if>
-              <if test="orQueryObject.configurations != null and !orQueryObject.configurations.isEmpty()">
+              <if test="orQueryObject.configurations != null and !orQueryObject.configurations.empty">
                   or RES.CONFIGURATION_ in
                   <foreach item="item" index="index" collection="orQueryObject.configurations" open="(" separator="," close=")">
                       #{item}
@@ -525,6 +527,12 @@
       <if test="originalPersistentState.scopeType != scopeType">
            SCOPE_TYPE_ = #{scopeType, jdbcType=VARCHAR},
       </if>
+      <if test="originalPersistentState.lockOwner != lockOwner">
+           LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR},
+      </if>
+      <if test="originalPersistentState.lockTime != lockTime">
+           LOCK_TIME_ = #{lockTime, jdbcType=TIMESTAMP},
+      </if>
       <if test="originalPersistentState.tenantId != tenantId">
            TENANT_ID_ = #{tenantId, jdbcType=VARCHAR},
       </if>
@@ -682,6 +690,12 @@
       <if test="originalPersistentState.created != created">
            CREATED_ = #{created, jdbcType=TIMESTAMP},
       </if>
+      <if test="originalPersistentState.lockOwner != lockOwner">
+           LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR},
+      </if>
+      <if test="originalPersistentState.lockTime != lockTime">
+           LOCK_TIME_ = #{lockTime, jdbcType=TIMESTAMP},
+      </if>
       <if test="originalPersistentState.tenantId != tenantId">
            TENANT_ID_ = #{tenantId, jdbcType=VARCHAR}
       </if>
@@ -838,6 +852,12 @@
       </if>
       <if test="originalPersistentState.created != created">
            CREATED_ = #{created, jdbcType=TIMESTAMP},
+      </if>
+      <if test="originalPersistentState.lockOwner != lockOwner">
+           LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR},
+      </if>
+      <if test="originalPersistentState.lockTime != lockTime">
+           LOCK_TIME_ = #{lockTime, jdbcType=TIMESTAMP},
       </if>
       <if test="originalPersistentState.tenantId != tenantId">
            TENANT_ID_ = #{tenantId, jdbcType=VARCHAR}
@@ -999,6 +1019,12 @@
             <if test="originalPersistentState.created != created">
                 CREATED_ = #{created, jdbcType=TIMESTAMP},
             </if>
+            <if test="originalPersistentState.lockOwner != lockOwner">
+                LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR},
+            </if>
+            <if test="originalPersistentState.lockTime != lockTime">
+                LOCK_TIME_ = #{lockTime, jdbcType=TIMESTAMP},
+            </if>
             <if test="originalPersistentState.tenantId != tenantId">
                 TENANT_ID_ = #{tenantId, jdbcType=VARCHAR}
             </if>
@@ -1015,7 +1041,24 @@
     </set>
     where TENANT_ID_ = #{oldTenantId, jdbcType=VARCHAR}
   </update>
-  
+
+  <update id="updateEventSubscriptionLockTime" parameterType="java.util.Map">
+    update ${prefix}ACT_RU_EVENT_SUBSCR
+    set
+        LOCK_TIME_ = #{lockTime, jdbcType=TIMESTAMP},
+        LOCK_OWNER_ = #{lockOwner, jdbcType=VARCHAR}
+    where ID_ = #{id}
+    and (LOCK_TIME_ is null OR LOCK_TIME_ &lt; #{currentTime})
+  </update>
+
+  <update id="clearEventSubscriptionLockTime" parameterType="java.util.Map">
+    update ${prefix}ACT_RU_EVENT_SUBSCR
+    set
+        LOCK_TIME_ = null,
+        LOCK_OWNER_ = null
+    where ID_ = #{id}
+  </update>
+
   <!-- DELETE -->
 
   <delete id="deleteSignalEventSubscription" parameterType="org.flowable.eventsubscription.service.impl.persistence.entity.EventSubscriptionEntityImpl">

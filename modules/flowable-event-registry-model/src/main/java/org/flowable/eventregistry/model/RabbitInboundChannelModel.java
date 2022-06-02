@@ -92,4 +92,5 @@ public class RabbitInboundChannelModel extends InboundChannelModel {
     public void setAckMode(String ackMode) {
         this.ackMode = ackMode;
     }
+    
 }

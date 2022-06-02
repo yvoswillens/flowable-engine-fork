@@ -37,18 +37,29 @@ public class EventJsonConverter {
 
             eventModel.setKey(modelNode.path("key").asText(null));
             eventModel.setName(modelNode.path("name").asText(null));
-
+            
             JsonNode payloadNode = modelNode.path("payload");
 
             if (payloadNode.isArray()) {
                 for (JsonNode node : payloadNode) {
                     String name = node.path("name").asText(null);
                     String type = node.path("type").asText(null);
+                    
+                    boolean header = node.path("header").asBoolean(false);
+                    if (header) {
+                        eventModel.addHeader(name, type);
+                    }
+                    
                     boolean correlationParameter = node.path("correlationParameter").asBoolean(false);
                     if (correlationParameter) {
                         eventModel.addCorrelation(name, type);
                     } else {
                         eventModel.addPayload(name, type);
+                    }
+                    
+                    boolean isFullPayload = node.path("isFullPayload").asBoolean(false);
+                    if (isFullPayload) {
+                        eventModel.addFullPayload(name);
                     }
                 }
             }
@@ -63,6 +74,7 @@ public class EventJsonConverter {
             }
 
             return eventModel;
+            
         } catch (Exception e) {
             throw new FlowableEventJsonException("Error reading event json", e);
         }
@@ -78,7 +90,7 @@ public class EventJsonConverter {
         if (definition.getName() != null) {
             modelNode.put("name", definition.getName());
         }
-
+        
         Collection<EventPayload> payload = definition.getPayload();
         if (!payload.isEmpty()) {
             ArrayNode payloadNode = modelNode.putArray("payload");
@@ -91,9 +103,17 @@ public class EventJsonConverter {
                 if (eventPayload.getType() != null) {
                     eventPayloadNode.put("type", eventPayload.getType());
                 }
+                
+                if (eventPayload.isHeader() && !eventPayload.isFullPayload()) {
+                    eventPayloadNode.put("header", true);
+                }
 
-                if (eventPayload.isCorrelationParameter()) {
+                if (eventPayload.isCorrelationParameter() && !eventPayload.isFullPayload()) {
                     eventPayloadNode.put("correlationParameter", true);
+                }
+                
+                if (eventPayload.isFullPayload()) {
+                    eventPayloadNode.put("isFullPayload", true);
                 }
             }
         }

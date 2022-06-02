@@ -62,4 +62,5 @@ public class JmsInboundChannelModel extends InboundChannelModel {
     public void setConcurrency(String concurrency) {
         this.concurrency = concurrency;
     }
+    
 }

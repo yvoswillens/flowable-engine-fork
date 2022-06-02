@@ -17,76 +17,21 @@ import static org.assertj.core.api.Assertions.entry;
 import static org.assertj.core.api.Assertions.tuple;
 
 import java.util.List;
-import java.util.Random;
 
 import org.flowable.cmmn.api.repository.CaseDefinition;
 import org.flowable.cmmn.api.runtime.CaseInstance;
 import org.flowable.cmmn.engine.test.CmmnDeployment;
 import org.flowable.common.engine.api.constant.ReferenceTypes;
 import org.flowable.common.engine.api.scope.ScopeTypes;
-import org.flowable.eventregistry.api.EventDeployment;
-import org.flowable.eventregistry.api.EventRegistry;
-import org.flowable.eventregistry.api.EventRepositoryService;
-import org.flowable.eventregistry.api.InboundEventChannelAdapter;
-import org.flowable.eventregistry.api.model.EventPayloadTypes;
-import org.flowable.eventregistry.model.InboundChannelModel;
 import org.flowable.eventsubscription.api.EventSubscription;
 import org.flowable.task.api.Task;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
-
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
  * @author Joram Barrez
  * @author Filip Hrisafov
  */
-public class CmmnEventRegistryConsumerTest extends FlowableEventRegistryCmmnTestCase {
-
-    protected TestInboundEventChannelAdapter inboundEventChannelAdapter;
-
-    @Before
-    public void registerEventDefinition() {
-        inboundEventChannelAdapter = setupTestChannel();
-
-        getEventRepositoryService().createEventModelBuilder()
-                .key("myEvent")
-                .resourceName("myEvent.event")
-                .correlationParameter("customerId", EventPayloadTypes.STRING)
-                .correlationParameter("orderId", EventPayloadTypes.STRING)
-                .payload("payload1", EventPayloadTypes.STRING)
-                .payload("payload2", EventPayloadTypes.INTEGER)
-                .deploy();
-    }
-
-    protected TestInboundEventChannelAdapter setupTestChannel() {
-        TestInboundEventChannelAdapter inboundEventChannelAdapter = new TestInboundEventChannelAdapter();
-        getEventRegistryEngineConfiguration().getExpressionManager().getBeans()
-                .put("inboundEventChannelAdapter", inboundEventChannelAdapter);
-
-        getEventRepositoryService().createInboundChannelModelBuilder()
-                .key("test-channel")
-                .resourceName("test.channel")
-                .channelAdapter("${inboundEventChannelAdapter}")
-                .jsonDeserializer()
-                .detectEventKeyUsingJsonField("type")
-                .jsonFieldsMapDirectlyToPayload()
-                .deploy();
-
-        return inboundEventChannelAdapter;
-    }
-
-    @After
-    public void unregisterEventDefinition() {
-        EventRepositoryService eventRepositoryService = getEventRepositoryService();
-        List<EventDeployment> deployments = eventRepositoryService.createDeploymentQuery().list();
-        for (EventDeployment eventDeployment : deployments) {
-            eventRepositoryService.deleteDeployment(eventDeployment.getId());
-        }
-    }
+public class CmmnEventRegistryConsumerTest extends AbstractCmmnEventRegistryConsumerTest {
 
     @Test
     @CmmnDeployment
@@ -365,7 +310,7 @@ public class CmmnEventRegistryConsumerTest extends FlowableEventRegistryCmmnTest
                         entry("anotherVarName", "Hello World")
                 );
     }
-
+    
     @Test
     @CmmnDeployment
     public void testCaseStartOnlyOneInstance() {
@@ -610,56 +555,6 @@ public class CmmnEventRegistryConsumerTest extends FlowableEventRegistryCmmnTest
                         tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, null),
                         tuple("myEvent", caseDefinitionAfterRedeploy.getId(), ScopeTypes.CMMN, caseInstance.getId())
                 );
-    }
-
-    private static class TestInboundEventChannelAdapter implements InboundEventChannelAdapter {
-
-        public InboundChannelModel inboundChannelModel;
-        public EventRegistry eventRegistry;
-
-        @Override
-        public void setInboundChannelModel(InboundChannelModel inboundChannelModel) {
-            this.inboundChannelModel = inboundChannelModel;
-        }
-
-        @Override
-        public void setEventRegistry(EventRegistry eventRegistry) {
-            this.eventRegistry = eventRegistry;
-        }
-
-        public void triggerTestEvent() {
-            triggerTestEvent(null);
-        }
-
-        public void triggerTestEvent(String customerId) {
-            triggerTestEvent(customerId, null);
-        }
-
-        public void triggerOrderTestEvent(String orderId) {
-            triggerTestEvent(null, orderId);
-        }
-
-        public void triggerTestEvent(String customerId, String orderId) {
-            ObjectMapper objectMapper = new ObjectMapper();
-
-            ObjectNode json = objectMapper.createObjectNode();
-            json.put("type", "myEvent");
-            if (customerId != null) {
-                json.put("customerId", customerId);
-            }
-
-            if (orderId != null) {
-                json.put("orderId", orderId);
-            }
-            json.put("payload1", "Hello World");
-            json.put("payload2", new Random().nextInt());
-            try {
-                eventRegistry.eventReceived(inboundChannelModel, objectMapper.writeValueAsString(json));
-            } catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
-        }
-
     }
 
 }

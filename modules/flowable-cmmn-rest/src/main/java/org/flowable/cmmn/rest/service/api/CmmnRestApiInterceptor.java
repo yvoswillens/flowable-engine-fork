@@ -12,6 +12,8 @@
  */
 package org.flowable.cmmn.rest.service.api;
 
+import java.util.Collection;
+
 import org.flowable.cmmn.api.history.HistoricCaseInstance;
 import org.flowable.cmmn.api.history.HistoricCaseInstanceQuery;
 import org.flowable.cmmn.api.history.HistoricMilestoneInstance;
@@ -29,6 +31,7 @@ import org.flowable.cmmn.api.runtime.CaseInstanceBuilder;
 import org.flowable.cmmn.api.runtime.CaseInstanceQuery;
 import org.flowable.cmmn.api.runtime.PlanItemInstance;
 import org.flowable.cmmn.api.runtime.PlanItemInstanceQuery;
+import org.flowable.cmmn.api.runtime.VariableInstanceQuery;
 import org.flowable.cmmn.rest.service.api.history.caze.HistoricCaseInstanceQueryRequest;
 import org.flowable.cmmn.rest.service.api.history.milestone.HistoricMilestoneInstanceQueryRequest;
 import org.flowable.cmmn.rest.service.api.history.planitem.HistoricPlanItemInstanceQueryRequest;
@@ -39,9 +42,11 @@ import org.flowable.cmmn.rest.service.api.runtime.caze.CaseInstanceQueryRequest;
 import org.flowable.cmmn.rest.service.api.runtime.caze.CaseInstanceUpdateRequest;
 import org.flowable.cmmn.rest.service.api.runtime.caze.ChangePlanItemStateRequest;
 import org.flowable.cmmn.rest.service.api.runtime.planitem.PlanItemInstanceQueryRequest;
+import org.flowable.cmmn.rest.service.api.runtime.task.BulkTasksRequest;
 import org.flowable.cmmn.rest.service.api.runtime.task.TaskActionRequest;
 import org.flowable.cmmn.rest.service.api.runtime.task.TaskQueryRequest;
 import org.flowable.cmmn.rest.service.api.runtime.task.TaskRequest;
+import org.flowable.cmmn.rest.service.api.runtime.variable.VariableInstanceQueryRequest;
 import org.flowable.eventsubscription.api.EventSubscription;
 import org.flowable.eventsubscription.api.EventSubscriptionQuery;
 import org.flowable.job.api.DeadLetterJobQuery;
@@ -56,6 +61,7 @@ import org.flowable.task.api.TaskQuery;
 import org.flowable.task.api.history.HistoricTaskInstance;
 import org.flowable.task.api.history.HistoricTaskInstanceQuery;
 import org.flowable.variable.api.history.HistoricVariableInstance;
+import org.flowable.variable.api.persistence.entity.VariableInstance;
 
 public interface CmmnRestApiInterceptor {
 
@@ -66,6 +72,8 @@ public interface CmmnRestApiInterceptor {
     void createTask(Task task, TaskRequest request);
     
     void updateTask(Task task, TaskRequest request);
+
+    void bulkUpdateTasks(Collection<Task> tasks, BulkTasksRequest request);
 
     void deleteTask(Task task);
     
@@ -79,8 +87,12 @@ public interface CmmnRestApiInterceptor {
     
     void terminateCaseInstance(CaseInstance caseInstance);
     
+    void bulkTerminateCaseInstances(Collection<String> caseInstanceIdList);
+
     void deleteCaseInstance(CaseInstance caseInstance);
     
+    void bulkDeleteCaseInstances(Collection<String> caseInstanceIdsSet);
+
     void doCaseInstanceAction(CaseInstance caseInstance, RestActionRequest actionRequest);
 
     void updateCaseInstance(CaseInstance caseInstance, CaseInstanceUpdateRequest updateRequest);
@@ -90,6 +102,10 @@ public interface CmmnRestApiInterceptor {
     void accessPlanItemInstanceInfoWithQuery(PlanItemInstanceQuery planItemInstanceQuery, PlanItemInstanceQueryRequest request);
     
     void doPlanItemInstanceAction(PlanItemInstance planItemInstance, RestActionRequest actionRequest);
+    
+    void accessVariableInfoById(VariableInstance variableInstance);
+    
+    void accessVariableInfoWithQuery(VariableInstanceQuery variableInstanceQuery, VariableInstanceQueryRequest request);
     
     void accessCaseDefinitionById(CaseDefinition caseDefinition);
     
@@ -123,6 +139,10 @@ public interface CmmnRestApiInterceptor {
 
     void deleteHistoryJob(HistoryJob historyJob);
     
+    void moveDeadLetterJob(Job job, String action);
+
+    void bulkMoveDeadLetterJobs(Collection<String> jobIds, String action);
+
     void accessEventSubscriptionById(EventSubscription eventSubscription);
     
     void accessEventSubscriptionInfoWithQuery(EventSubscriptionQuery eventSubscriptionQuery);
@@ -143,6 +163,8 @@ public interface CmmnRestApiInterceptor {
     
     void deleteHistoricCase(HistoricCaseInstance historicCaseInstance);
     
+    void bulkDeleteHistoricCases(Collection<String> instanceIds);
+
     void accessStageOverview(CaseInstance caseInstance);
 
     void accessHistoryMilestoneInfoById(HistoricMilestoneInstance historicMilestoneInstance);

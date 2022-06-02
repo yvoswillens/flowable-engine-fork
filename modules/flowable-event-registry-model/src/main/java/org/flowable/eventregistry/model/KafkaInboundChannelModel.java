@@ -119,4 +119,5 @@ public class KafkaInboundChannelModel extends InboundChannelModel {
             this.value = value;
         }
     }
+    
 }
