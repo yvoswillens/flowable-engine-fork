@@ -25,9 +25,9 @@ jobs:
         uses: helm/chart-releaser-action@v1.4.0
         with:
           charts_dir: k8s/flowable
-          charts_repo_url: https://flowable.github.io/helm/
+          # charts_repo_url: https://flowable.github.io/helm/
         env:
-          CR_OWNER: yvoswillens
-          CR_GIT_REPO: yvoswillens.github.io
-          CR_PACKAGE_PATH: helm
+          # CR_OWNER: yvoswillens
+          # CR_GIT_REPO: yvoswillens.github.io
+          # CR_PACKAGE_PATH: helm
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
