@@ -39,8 +39,7 @@ jobs:
         uses: helm/chart-releaser-action@v1.4.0
         with:
           charts_dir: k8s
-          sign: true
-          key: yvoswillens@gmail.com
+          config: cr.yaml
           # charts_repo_url: https://flowable.github.io/helm/
         env:
           # CR_OWNER: yvoswillens
