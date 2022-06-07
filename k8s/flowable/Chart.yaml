@@ -12,5 +12,8 @@ keywords:
   - BPMN
   - CMMN
   - DMN
+maintainers:
+  - name: yvoswillens
+    email: yvoswillens@gmail.com
 annotations:
   artifacthub.io/prerelease: "true"
