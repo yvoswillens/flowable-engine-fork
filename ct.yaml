@@ -1,7 +1,7 @@
 remote: origin
 target-branch: main
 chart-dirs:
-  - charts
+  - k8s
 chart-repos:
   - flowable_oss=https://flowable.github.io/helm
 helm-extra-args: --timeout 600s
